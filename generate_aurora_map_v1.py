@@ -35,6 +35,7 @@ def build_figure(df: pd.DataFrame, obs_time: str, fc_time: str) -> go.Figure:
       - aurora >= 10
     """
     thresholds = [0, 1, 5, 10]
+
     # colors for slicer background for each threshold
     thr_colors = {
         0: "#808080",   # grey
@@ -60,16 +61,12 @@ def build_figure(df: pd.DataFrame, obs_time: str, fc_time: str) -> go.Figure:
                     colorscale="Viridis",
                     cmin=0,
                     cmax=max_aurora,
-                    colorbar=dict(
-                        title="Aurora<br>Intensity"
-                    )
-                    if i == 0  # one shared colorbar
-                    else None,
+                    # always attach a colorbar; they overlap so it looks like one
+                    colorbar=dict(title="Aurora<br>Intensity"),
                 ),
                 showlegend=False,
-                visible=(i == 0),  # start with "All" visible
+                visible=(i == 0),  # start with threshold 0 visible
                 name=f"aurora ≥ {thr}",
-                # 🔍 custom hover: Lat, Lon, Intensity (no threshold info)
                 hovertemplate=(
                     "Lat: %{lat}<br>"
                     "Lon: %{lon}<br>"
@@ -88,7 +85,6 @@ def build_figure(df: pd.DataFrame, obs_time: str, fc_time: str) -> go.Figure:
         visible = [False] * len(thresholds)
         visible[i] = True
 
-        # update dropdown background color based on active threshold
         bg = thr_colors.get(thr, "#808080")
 
         buttons.append(
@@ -96,15 +92,13 @@ def build_figure(df: pd.DataFrame, obs_time: str, fc_time: str) -> go.Figure:
                 label=f"Aurora ≥ {thr}",
                 method="update",
                 args=[
+                    # 1) which traces are visible
                     {"visible": visible},
+                    # 2) layout updates: keep title, recolor dropdown
                     {
-                        # keep title as-is; only tweak the dropdown styling
-                        "updatemenus": [
-                            {
-                                "bgcolor": bg,
-                                "bordercolor": bg,
-                            }
-                        ]
+                        "title.text": base_title_text,
+                        "updatemenus[0].bgcolor": bg,
+                        "updatemenus[0].bordercolor": bg,
                     },
                 ],
             )
@@ -113,7 +107,7 @@ def build_figure(df: pd.DataFrame, obs_time: str, fc_time: str) -> go.Figure:
     fig = go.Figure(data=traces)
 
     fig.update_layout(
-        # 🎯 centered title
+        # centered title
         title=dict(
             text=base_title_text,
             x=0.5,
@@ -133,7 +127,7 @@ def build_figure(df: pd.DataFrame, obs_time: str, fc_time: str) -> go.Figure:
                 direction="down",
                 showactive=True,
                 active=0,
-                x=0.01,     # 📍 top-left
+                x=0.01,      # top-left
                 y=1.15,
                 xanchor="left",
                 yanchor="top",
@@ -146,6 +140,7 @@ def build_figure(df: pd.DataFrame, obs_time: str, fc_time: str) -> go.Figure:
     )
 
     return fig
+
 
 
 
