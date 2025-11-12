@@ -12,8 +12,8 @@
       color: #333;
     }
     #container {
-      padding: 10px;
-      /* max-width: 1400px; */
+      padding: 20px;
+      max-width: 1400px;
       margin: auto;
     }
     #status {
@@ -23,7 +23,13 @@
     }
     #map {
       width: 100%;
-      height: 90vh;
+      height: 80vh;
+    }
+    #footer {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: #666;
+      text-align: center;
     }
   </style>
 </head>
@@ -31,6 +37,10 @@
   <div id="container">
     <div id="status">Loading latest aurora forecast…</div>
     <div id="map"></div>
+    <div id="footer">
+      Loaded latest data from NOAA when you opened this page.
+      <span id="timer"></span>
+    </div>
   </div>
 
   <script>
@@ -38,6 +48,7 @@
 
     async function loadAurora() {
       const statusEl = document.getElementById("status");
+      const timerEl  = document.getElementById("timer");
 
       try {
         statusEl.textContent = "Fetching data from NOAA…";
@@ -48,16 +59,24 @@
         const data = await resp.json();
         const coords = data.coordinates || [];
 
-        const lons   = coords.map(c => c[0]);
-        const lats   = coords.map(c => c[1]);
-        const values = coords.map(c => c[2]);
+        // 🔻 Reduce dot density: keep every Nth point
+        const step = 3; // try 3; increase to 4/5 if you want even fewer points
+        const lons   = [];
+        const lats   = [];
+        const values = [];
+
+        for (let i = 0; i < coords.length; i += step) {
+          lons.push(coords[i][0]);
+          lats.push(coords[i][1]);
+          values.push(coords[i][2]);
+        }
 
         const obsTime = data["Observation Time"] || "";
         const fcTime  = data["Forecast Time"] || "";
 
         const maxVal = Math.max(...values);
 
-        // thresholds and colors to match your Python version
+        // thresholds and colors (mirror the Python version)
         const thresholds = [0, 1, 5, 10];
         const thrColors = {
           0: "#808080",   // grey
@@ -68,7 +87,9 @@
 
         // build one trace per threshold
         const traces = thresholds.map((thr, i) => {
-          const idxs = values.map((v, j) => v >= thr ? j : -1).filter(j => j >= 0);
+          const idxs = values
+            .map((v, j) => (v >= thr ? j : -1))
+            .filter(j => j >= 0);
 
           const tLons   = idxs.map(j => lons[j]);
           const tLats   = idxs.map(j => lats[j]);
@@ -155,8 +176,33 @@
           plot_bgcolor: "rgba(0,0,0,0)"
         };
 
-        await Plotly.newPlot("map", traces, layout, {responsive: true});
-        statusEl.textContent = "Loaded latest data from NOAA when you opened this page.";
+        await Plotly.newPlot("map", traces, layout, { responsive: true });
+
+        // ✅ Status line + live timer
+        statusEl.textContent = "Map loaded.";
+
+        const loadedAt = new Date();
+
+        function updateTimer() {
+          const now = new Date();
+          const diffMs = now - loadedAt;
+          const mins = Math.floor(diffMs / 60000);
+          const secs = Math.floor((diffMs % 60000) / 1000);
+
+          let text;
+          if (mins === 0 && secs < 5) {
+            text = "Last updated just now";
+          } else if (mins === 0) {
+            text = `Last updated ${secs} seconds ago`;
+          } else {
+            text = `Last updated ${mins} min ${secs.toString().padStart(2, "0")} sec ago`;
+          }
+
+          timerEl.textContent = " • " + text;
+        }
+
+        updateTimer();
+        setInterval(updateTimer, 15000); // refresh every 15 seconds
       } catch (err) {
         console.error(err);
         statusEl.textContent = "Failed to load aurora data. Please try refreshing.";
