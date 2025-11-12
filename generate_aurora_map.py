@@ -35,9 +35,18 @@ def build_figure(df: pd.DataFrame, obs_time: str, fc_time: str) -> go.Figure:
       - aurora >= 10
     """
     thresholds = [0, 1, 5, 10]
-    max_aurora = df["aurora"].max()
 
+    # colors for slicer background for each threshold
+    thr_colors = {
+        0: "#808080",   # grey
+        1: "#00cc96",   # green
+        5: "#ffa15a",   # orange
+        10: "#ef553b",  # red
+    }
+
+    max_aurora = df["aurora"].max()
     traces = []
+
     for i, thr in enumerate(thresholds):
         subset = df[df["aurora"] >= thr]
 
@@ -52,36 +61,45 @@ def build_figure(df: pd.DataFrame, obs_time: str, fc_time: str) -> go.Figure:
                     colorscale="Viridis",
                     cmin=0,
                     cmax=max_aurora,
-                    colorbar=dict(
-                        title="Aurora<br>Intensity"
-                    )
-                    if i == 0  # one shared colorbar
-                    else None,
+                    # always attach a colorbar; they overlap so it looks like one
+                    colorbar=dict(title="Aurora<br>Intensity"),
                 ),
                 showlegend=False,
-                visible=(i == 0),  # start with "All" visible
+                visible=(i == 0),  # start with threshold 0 visible
                 name=f"aurora ≥ {thr}",
+                hovertemplate=(
+                    "Lat: %{lat}<br>"
+                    "Lon: %{lon}<br>"
+                    "Intensity: %{marker.color}<extra></extra>"
+                ),
             )
         )
 
-    title = (
+    base_title_text = (
         "Aurora Forecast"
         f"<br><sub>Observation: {obs_time} | Forecast: {fc_time}</sub>"
     )
 
-    # Dropdown buttons to toggle thresholds
     buttons = []
     for i, thr in enumerate(thresholds):
         visible = [False] * len(thresholds)
         visible[i] = True
+
+        bg = thr_colors.get(thr, "#808080")
 
         buttons.append(
             dict(
                 label=f"Aurora ≥ {thr}",
                 method="update",
                 args=[
+                    # 1) which traces are visible
                     {"visible": visible},
-                    {"title": title + f"<br><sup>Threshold: aurora ≥ {thr}</sup>"},
+                    # 2) layout updates: keep title, recolor dropdown
+                    {
+                        "title.text": base_title_text,
+                        "updatemenus[0].bgcolor": bg,
+                        "updatemenus[0].bordercolor": bg,
+                    },
                 ],
             )
         )
@@ -89,7 +107,12 @@ def build_figure(df: pd.DataFrame, obs_time: str, fc_time: str) -> go.Figure:
     fig = go.Figure(data=traces)
 
     fig.update_layout(
-        title=title,
+        # centered title
+        title=dict(
+            text=base_title_text,
+            x=0.5,
+            xanchor="center",
+        ),
         geo=dict(
             projection_type="natural earth",
             showcoastlines=True,
@@ -104,10 +127,12 @@ def build_figure(df: pd.DataFrame, obs_time: str, fc_time: str) -> go.Figure:
                 direction="down",
                 showactive=True,
                 active=0,
-                x=0.02,
-                y=0.95,
+                x=0.01,      # top-left
+                y=1.15,
                 xanchor="left",
                 yanchor="top",
+                bgcolor=thr_colors[0],
+                bordercolor=thr_colors[0],
                 buttons=buttons,
             )
         ],
@@ -115,6 +140,8 @@ def build_figure(df: pd.DataFrame, obs_time: str, fc_time: str) -> go.Figure:
     )
 
     return fig
+
+
 
 
 def format_iso_timestamp(ts: str) -> str | None:
@@ -152,7 +179,7 @@ def main():
     fig = build_figure(df, obs_time, fc_time)
 
     # 1) Save interactive HTML for GitHub Pages
-    html_path = os.path.join(docs_dir, "index.html")
+    html_path = os.path.join(docs_dir, "snapshot.html")
     fig.write_html(
         html_path,
         full_html=True,
